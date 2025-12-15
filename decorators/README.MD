@@ -32,3 +32,25 @@ Three distinct decorators were created, each adding a single responsibility:
 | `FraudCheckDecorator` | Halting processing if amount > 1000. | Before | Security and Early Exit. |
 | `CurrencyConversionDecorator` | Appending conversion notes to the result. | After | Data Enrichment and Formatting. |
 
+## 🧪 Test Plan
+
+The system is verified using `Deno.test`, covering the following scenarios:
+
+| Test ID | Scenario | Configuration | Expected Outcome |
+| :--- | :--- | :--- | :--- |
+| **T-001** | **Audit Logging** | `AuditDecorator` -> `BasicPaymentProcessor` | **Success**. System logs start/end of transaction. |
+| **T-002** | **Currency Conversion** | `CurrencyConversionDecorator` -> `BasicPaymentProcessor` | **Success**. Message includes "converted to COP". |
+| **T-003** | **Base Failure** | `BasicPaymentProcessor` (Amount = 0) | **Failed**. Core logic validation rejects invalid amount. |
+| **T-004** | **Fraud Check** | `FraudCheckDecorator` -> `BasicPaymentProcessor` (Amount = 1500) | **Flagged**. High amount triggers fraud alert. |
+| **T-005** | **Stacked: Audit + Fraud** | `AuditDecorator` -> `FraudCheckDecorator` -> `BasicProcessor` | **Flagged**. Audit logs the attempt; Fraud check halts execution. |
+| **T-006** | **Stacked: Audit + Currency** | `AuditDecorator` -> `CurrencyConversionDecorator` -> `BasicProcessor` | **Success**. Transactions are logged and currency messages are appended. |
+
+### Running the Tests
+
+Execute the test suite using the Deno test runner:
+
+```bash
+deno test decorators/test/main.test.ts
+```
+
+
