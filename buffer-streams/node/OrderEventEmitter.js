@@ -1,4 +1,4 @@
-const IEventEmitter = require('./interfaces/IEventEmitter.js');
+const IEventEmitter = require('./Interfaces/IEventEmitter.js');
 
 class OrderEventEmitter extends IEventEmitter {
     constructor() {
