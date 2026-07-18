@@ -1,6 +1,6 @@
 # 📚 Streams Architecture & Learning Log (Q&A)
 
-This document serves as an academic learning log and Architecture Decision Record (ADR) for the Cryptocurrency Order Processing Challenge. It is designed for both human reference and to provide deep architectural context to future **AI Agents** collaborating on this repository.
+This document serves as an academic learning log and Architecture Decision Record (ADR) for the Cryptocurrency Order Processing Challenge. It is designed for human reference, future **AI Agents**, and as a **comprehensive teaching syllabus** for video walkthroughs, webinars, or in-person workshops.
 
 ---
 
@@ -57,3 +57,80 @@ In [index.js](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamp
 
 ### 🌟 Golden Rule / Takeaway
 > The final argument of a Node.js `pipeline(...)` is the **Sink (Destination)**. It is not a `Transform` stream because it consumes data rather than re-emitting it. Modern Node.js allows this sink to be an async consumer function (`for await...of`), which is ideal for inspection or final data persistence.
+
+---
+
+## 📌 [004] Composition over Inheritance & Dependency Injection in Streams
+* **Date:** 2026-07-18
+* **Related Files:** [HighValueAlertDecorator.js](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamples/buffer-streams/node/decorators/HighValueAlertDecorator.js), [index.js](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamples/buffer-streams/node/index.js)
+
+### ❓ Original Question / Doubt
+`HighValueAlertDecorator` needs to act as a Stream Decorator and at the same time as an `EventEmitter` (Subject in the Observer pattern). Why can't we inherit from both classes (`extends Transform, OrderEventEmitter`), and how do we solve it using Composition and Dependency Injection?
+
+### 📖 Architectural Explanation
+1. **No Multiple Inheritance in JavaScript:** JS classes can only extend a single parent class. Since the decorator *must* extend `Transform` to be placed inside `pipeline(...)`, it cannot extend `OrderEventEmitter`.
+2. **Composition over Inheritance:** Instead of forcing the decorator to *be* an EventEmitter, the decorator *has* an EventEmitter as an internal property (`this.eventEmitter`).
+3. **Constructor Dependency Injection:** Rather than creating a new `OrderEventEmitter` inside the decorator (which would create an isolated instance unlinked to the subscribers), `index.js` instantiates the shared `orderEventEmitter`, attaches the observers (`RiskManagerNotifier`, `DatabaseLogger`), and injects it into the decorator constructor (`new HighValueAlertDecorator(orderEventEmitter)`).
+4. **JavaScript Runtime Constraint (The `super()` rule):** In ES6+ derived classes, accessing `this` before calling `super(config)` throws a fatal `ReferenceError`. `super(config)` must always execute first.
+
+### 🌟 Golden Rule / Takeaway
+> When a stream component requires multi-domain capabilities, favor **Composition with Dependency Injection** over Inheritance. Pass the required service (e.g. EventEmitter) via constructor and invoke `super(config)` prior to assigning `this.property = injectedService`.
+
+---
+
+## 📌 [005] DTOs & Domain Events (`IOrderEvent`) vs Anonymous Objects
+* **Date:** 2026-07-18
+* **Related Files:** [IOrderEvent.js](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamples/buffer-streams/node/Interfaces/IOrderEvent.js), [HighValueAlertDecorator.js](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamples/buffer-streams/node/decorators/HighValueAlertDecorator.js)
+
+### ❓ Original Question / Doubt
+When the alert condition (`quantity * price > 100,000`) is met, why should we emit `new IOrderEvent(...)` instead of emitting the raw parsed `chunk` object directly?
+
+### 📖 Architectural Explanation
+1. **Anonymous Chunks vs Domain Contracts:** The `chunk` flowing through streams is an untyped dictionary created during parsing. Emitting it couples the Observer system to the internal stream representation.
+2. **Formal Domain Events:** `IOrderEvent` is a typed Data Transfer Object (DTO). Instantiating `new IOrderEvent(id, asset, quantity, price, status)` enforces data structure integrity, enables predictable observability, and adheres to the architectural contract defined in the requirements.
+
+### 🌟 Golden Rule / Takeaway
+> Always map raw stream transport data into explicit **Domain Event DTOs** before notifying observers. This prevents domain logic and external consumers from coupling to internal stream parsing artifacts.
+
+---
+
+## 📌 [006] The Formatter Bridge: Transitioning from Object Mode back to Text/Buffers
+* **Date:** 2026-07-18
+* **Related Files:** [CsvFormatterStream.js](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamples/buffer-streams/node/streams/CsvFormatterStream.js), [index.js](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamples/buffer-streams/node/index.js)
+
+### ❓ Original Question / Doubt
+Once objects are normalized and checked for alerts, why can't we pipe them directly into `fs.createWriteStream('processed_orders.csv')`? Why is `CsvFormatterStream` required?
+
+### 📖 Architectural Explanation
+1. **The Object Mode vs Byte Stream Boundary:** `fs.createWriteStream` is a filesystem sink that only accepts raw strings or Buffers. Passing a JavaScript object to a standard writable stream throws a `TypeError: Invalid non-string/buffer chunk`.
+2. **The Bridge Transform Stream:** `CsvFormatterStream` is configured with `writableObjectMode: true` (receives objects) and `readableObjectMode: false` (emits strings).
+3. **Single Header Emission:** By using a state flag (`this.isFirstChunk = true`), the formatter emits the CSV column headers (`id,asset,quantity,price,status\n`) exactly once before serializing subsequent data rows.
+
+### 🌟 Golden Rule / Takeaway
+> To write stream-processed objects back to disk or network sockets, you must place a **Bridge Transform Stream** at the end of the pipeline that converts objects into delimited strings (`writableObjectMode: true, readableObjectMode: false`).
+
+---
+
+# 🎓 Masterclass & Knowledge Transfer Syllabus (Teaching Guide)
+
+Use this structured roadmap when presenting this project as a **video course, tech talk, or live workshop**:
+
+### 🎯 1. Introduction & The Business Problem (5 mins)
+* **Scenario:** A crypto exchange receiving a continuous stream of historical transaction orders.
+* **The Problem:** Loading gigabytes of CSV data into RAM causes `JavaScript heap out of memory` crashes.
+* **The Solution:** A decoupled, memory-efficient pipeline combining **Streams (I/O)**, **Decorator Pattern (Transformations)**, and **Observer Pattern (Real-time Alerts)**.
+
+### 🧱 2. Core Architecture & Design Patterns (10 mins)
+* **The 3 Pipeline Stages:** Source (`ReadStream`) ➔ Intermediate Decorators (`Transform`) ➔ Sink (`WriteStream`).
+* **Decorator Pattern via Streams:** How chaining `Transform` streams adheres to SOLID (Open/Closed Principle).
+* **Observer Pattern via Dependency Injection:** Keeping high-value transaction alerts completely decoupled from data processing.
+
+### ⚠️ 3. The 4 Critical Gotchas to Teach (15 mins)
+1. **The `objectMode` Switch:** Why streams crash without explicit `{ objectMode: true }` in intermediate stages.
+2. **ES6 `super()` Ordering:** Why assigning properties to `this` before `super(config)` fails in JavaScript.
+3. **The DTO Bridge:** Why domain events (`IOrderEvent`) should be emitted instead of raw stream chunks.
+4. **The Serializer Sink:** How to convert object streams back into text streams for filesystem persistence.
+
+### 🦕 4. The Portability Challenge: Node.js Streams vs Web Streams API (15 mins)
+* **Node.js Streams:** `stream.pipeline()`, `Transform`, and event-driven backpressure.
+* **Deno / Browser Web Streams:** `ReadableStream`, `TransformStream`, `.pipeThrough()`, and standard WHATWG APIs.
