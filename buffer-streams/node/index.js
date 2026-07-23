@@ -10,7 +10,7 @@ import HighValueAlertDecorator from './decorators/HighValueAlertDecorator.js';
 import CsvFormatterStream from './streams/CsvFormatterStream.js';
 
 //Sources
-const csvFilePath = join(process.cwd(), 'buffer-streams/node/orders.csv');
+const csvFilePath = join(process.cwd(), 'buffer-streams/orders.csv');
 const fileStream = fs.createReadStream(csvFilePath);
 
 const outputFilePath = join(process.cwd(), 'buffer-streams/node/processed_orders.csv');

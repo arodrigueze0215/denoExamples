@@ -111,6 +111,64 @@ Once objects are normalized and checked for alerts, why can't we pipe them direc
 
 ---
 
+## 📌 [007] TypeScript Interface Contracts (`implements` vs `extends`) & Type-Only Imports
+* **Date:** 2026-07-18
+* **Related Files:** [IEventEmitter.ts](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamples/buffer-streams/deno/interfaces/IEventEmitter.ts), [OrderEventEmitter.ts](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamples/buffer-streams/deno/OrderEventEmitter.ts), [RiskManagerNotifier.ts](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamples/buffer-streams/deno/observers/RiskManagerNotifier.ts)
+
+### ❓ Original Question / Doubt
+Why use `implements IEventEmitter` in TypeScript instead of `extends`? What happens if a method name in the class (like `notify`) differs from the interface definition (`emit`), and why are `import type` statements preferred in Deno?
+
+### 📖 Architectural Explanation
+1. **`extends` vs `implements`:**
+   * **`extends` (Inheritance):** Inherits executable code and state from a parent class.
+   * **`implements` (Contract Enforcement):** Does not inherit code. It acts as a compile-time guarantee to TypeScript that the class satisfies all properties and method signatures of an `interface`.
+2. **Compile-Time Type Safety:** When `implements IEventEmitter` was declared on `OrderEventEmitter`, TypeScript caught that the method was named `notify` instead of `emit`, preventing a runtime bug before any code was executed.
+3. **`import type` Optimization:** Using `import type { ... }` in Deno informs the TypeScript compiler that the imported symbol is solely used for type checking. The compiler completely erases these imports during compilation, resulting in cleaner code and zero runtime overhead.
+
+### 🌟 Golden Rule / Takeaway
+> In TypeScript, use `implements` on classes to enforce strict architectural contracts defined by interfaces. Use `import type` when importing interfaces/types to ensure clean compile-time validation with zero runtime overhead.
+
+---
+
+## 📌 [008] Web Streams Standard Composition (`ReadableStream`, `.pipeThrough()`, `.pipeTo()`)
+* **Date:** 2026-07-23
+* **Related Files:** [main.ts](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamples/buffer-streams/deno/main.ts)
+
+### ❓ Original Question / Doubt
+How does stream composition in Deno differ from Node.js `stream.pipeline()`, and how are byte streams converted line-by-line using WHATWG Web Streams?
+
+### 📖 Architectural Explanation
+1. **Standard WHATWG Web Streams API:** Unlike Node.js classic streams (`stream.Transform`), Deno uses the standard Web Streams API (`ReadableStream`, `TransformStream`, `WritableStream`) native to modern browsers.
+2. **Pipeline Composition via `.pipeThrough()`:** Web Streams chain transformations using `.pipeThrough(transformStream)`. Each `.pipeThrough()` returns a new `ReadableStream`, ending with `await readableStream.pipeTo(writableStream)`.
+3. **Byte-to-Line Decoding Chain:**
+   * `inputFile.readable` emits raw byte chunks (`Uint8Array`).
+   * `TextDecoderStream` decodes bytes into text strings.
+   * `TextLineStream` splits text into line-by-line chunks.
+   * Custom `TransformStream` instances process domain objects.
+   * `TextEncoderStream` encodes final CSV strings back to bytes before writing to `outputFile.writable`.
+
+### 🌟 Golden Rule / Takeaway
+> When building Web Streams pipelines in Deno, chain `TransformStream` components using `.pipeThrough()` and end the stream with `await .pipeTo(writableStream)`. Use `TextDecoderStream` + `TextLineStream` at the entry point and `TextEncoderStream` at the sink for file I/O.
+
+---
+
+## 📌 [009] Relative Path Resolution in Deno Scripts (`import.meta.url`)
+* **Date:** 2026-07-23
+* **Related Files:** [main.ts](file:///Users/rodrandres/Personal/Projects/deno-examples/denoExamples/buffer-streams/deno/main.ts#L35-L36)
+
+### ❓ Original Question / Doubt
+Why does passing string literals like `"../orders.csv"` to `Deno.open()` throw `NotFound: No such file or directory` when running `deno run` from the project root directory?
+
+### 📖 Architectural Explanation
+1. **CWD Dependency of String Paths:** Relative string paths passed to `Deno.open("...")` or `Deno.create("...")` are resolved relative to the process **Current Working Directory (CWD)**, not the script file location.
+2. **Resilient Path Resolution via `import.meta.url`:** Using `new URL("../orders.csv", import.meta.url)` constructs a file URL relative to the module file itself (`main.ts`).
+3. **Native URL Support:** `Deno.open()` and `Deno.create()` natively accept `URL` objects, making file operations execution-directory agnostic.
+
+### 🌟 Golden Rule / Takeaway
+> Always use `new URL("./path", import.meta.url)` when opening local files in Deno to ensure path resolution remains relative to the source code file regardless of where `deno run` is invoked from.
+
+---
+
 # 🎓 Masterclass & Knowledge Transfer Syllabus (Teaching Guide)
 
 Use this structured roadmap when presenting this project as a **video course, tech talk, or live workshop**:
@@ -125,11 +183,12 @@ Use this structured roadmap when presenting this project as a **video course, te
 * **Decorator Pattern via Streams:** How chaining `Transform` streams adheres to SOLID (Open/Closed Principle).
 * **Observer Pattern via Dependency Injection:** Keeping high-value transaction alerts completely decoupled from data processing.
 
-### ⚠️ 3. The 4 Critical Gotchas to Teach (15 mins)
+### ⚠️ 3. The 5 Critical Gotchas to Teach (20 mins)
 1. **The `objectMode` Switch:** Why streams crash without explicit `{ objectMode: true }` in intermediate stages.
 2. **ES6 `super()` Ordering:** Why assigning properties to `this` before `super(config)` fails in JavaScript.
 3. **The DTO Bridge:** Why domain events (`IOrderEvent`) should be emitted instead of raw stream chunks.
 4. **The Serializer Sink:** How to convert object streams back into text streams for filesystem persistence.
+5. **TypeScript `implements` Contracts:** How compile-time interfaces prevent method signature mismatches (`emit` vs `notify`).
 
 ### 🦕 4. The Portability Challenge: Node.js Streams vs Web Streams API (15 mins)
 * **Node.js Streams:** `stream.pipeline()`, `Transform`, and event-driven backpressure.
